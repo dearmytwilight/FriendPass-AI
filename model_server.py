@@ -35,7 +35,7 @@ category_mapping = {
 all_groups = list(set(category_mapping.values()))
 regions = ["국민", "성신", "동덕"]
 
-def recommend_teams(users: list, threshold: float = 0.2) -> list:
+def recommend_teams(users: list, threshold: float = 0.55) -> list:
     if not users:
         return []
 
