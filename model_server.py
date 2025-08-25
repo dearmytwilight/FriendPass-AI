@@ -116,24 +116,28 @@ def recommend_teams(users: list, threshold: float = 0.55) -> list:
     print("sim_avg 최대:", round(max(all_sims), 3))
     print("sim_avg 평균:", round(np.mean(all_sims), 3))
 
+    # 후보팀이 1개거나 라벨이 1개뿐이면 threshold 기준으로 추천
     if len(set(y)) < 2:
-        print("팀 라벨이 하나뿐이라 학습 불가 → 추천 불가")
-        return []
+        print("팀 라벨이 하나뿐이라 학습 불가 → threshold 기준 추천")
+        scored_teams = [tm for tm in team_meta if tm["sim_avg"] >= threshold]
+        # 점수 대신 sim_avg 사용
+        for tm in scored_teams:
+            tm["score"] = tm["sim_avg"]
+    else :
 
-    model = LogisticRegression()
-    model.fit(np.array(X), np.array(y))
-    scores = model.predict_proba(np.array(X))[:, 1]
+        model = LogisticRegression()
+        model.fit(np.array(X), np.array(y))
+        scores = model.predict_proba(np.array(X))[:, 1]
 
-    # 점수 기반 정렬
-    scored_teams = [
-        {
-            "team_ids": team_meta[i]["team_ids"],
-            "score": round(scores[i], 3),
-            "ex_pair": team_meta[i]["ex_pair"],
-            "kr_pair": team_meta[i]["kr_pair"]
-        }
-        for i in range(len(scores)) if scores[i] >= threshold
-    ]
+        scored_teams = [
+            {
+                "team_ids": team_meta[i]["team_ids"],
+                "score": round(scores[i], 3),
+                "ex_pair": team_meta[i]["ex_pair"],
+                "kr_pair": team_meta[i]["kr_pair"]
+            }
+            for i in range(len(scores)) if scores[i] >= threshold
+        ]
     scored_teams.sort(key=lambda x: x["score"], reverse=True)
 
     # 중복 유저 제거하며 확정
