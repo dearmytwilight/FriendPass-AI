@@ -35,7 +35,7 @@ category_mapping = {
 all_groups = list(set(category_mapping.values()))
 regions = ["국민", "성신", "동덕"]
 
-def recommend_teams(users: list, threshold: float = 0.4) -> list:
+def recommend_teams(users: list, threshold: float = 0.2) -> list:
     if not users:
         return []
 
@@ -69,12 +69,14 @@ def recommend_teams(users: list, threshold: float = 0.4) -> list:
                 itertools.combinations(ex_users, 2),
                 itertools.combinations(kr_users, 2)
             ))
-    
+
     if not teams:
         return []
 
     # 팀 벡터 및 라벨 생성
     X, y, team_meta = [], [], []
+    all_sims = []
+
     for ex_pair, kr_pair in teams:
         team_ids = [u["id"] for u in ex_pair + kr_pair]
         team_vector = np.concatenate([
@@ -88,13 +90,14 @@ def recommend_teams(users: list, threshold: float = 0.4) -> list:
         team_interests = np.array([
             interest_matrix[user_index_map[u["id"]]] for u in ex_pair + kr_pair
         ])
-
         sim_matrix = cosine_similarity(team_interests)
         n = sim_matrix.shape[0]
         sim_avg = (sim_matrix.sum() - n) / (n * (n - 1))
-        label = 1 if sim_avg >= 0.7 else 0
+        all_sims.append(sim_avg)
 
-        y.append(label)
+        # 디버깅 로그
+        print(f"팀 {team_ids} sim_avg={sim_avg:.3f}")
+
         team_meta.append({
             "team_ids": team_ids,
             "sim_avg": sim_avg,
@@ -102,7 +105,17 @@ def recommend_teams(users: list, threshold: float = 0.4) -> list:
             "kr_pair": kr_pair
         })
 
+    # 중앙값 기준 라벨링 (0/1 섞이도록)
+    median_sim = np.median(all_sims)
+    for idx, tm in enumerate(team_meta):
+        label = 1 if tm["sim_avg"] >= median_sim else 0
+        y.append(label)
+
     print("팀 라벨 분포:", Counter(y))
+    print("sim_avg 최소:", round(min(all_sims), 3))
+    print("sim_avg 최대:", round(max(all_sims), 3))
+    print("sim_avg 평균:", round(np.mean(all_sims), 3))
+
     if len(set(y)) < 2:
         print("팀 라벨이 하나뿐이라 학습 불가 → 추천 불가")
         return []
@@ -144,7 +157,7 @@ def recommend_teams(users: list, threshold: float = 0.4) -> list:
                 if originals:
                     most_common = Counter(originals).most_common(1)[0][0]
                     representatives_interests.append(most_common)
-            
+
             team_region = team["ex_pair"][0]["region"]
 
             final_teams.append({
@@ -154,8 +167,10 @@ def recommend_teams(users: list, threshold: float = 0.4) -> list:
                 "matched_region": team_region
             })
             used_ids.update(team["team_ids"])
+
     print("최종 응답:", final_teams)
     return final_teams
+
 
 
 @app.post("/recommend-teams")
